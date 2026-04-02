@@ -33,9 +33,11 @@ export async function sendMessage(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
   const systemPrompt = buildSystemPrompt(scenario);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: systemPrompt,
+  });
 
   const contents: Content[] = history.map((msg) => ({
     role: msg.role,
@@ -44,7 +46,6 @@ export async function sendMessage(
 
   const chat = model.startChat({
     history: contents,
-    systemInstruction: systemPrompt,
   });
 
   const result = await chat.sendMessage(userMessage);
