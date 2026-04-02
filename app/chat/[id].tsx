@@ -27,7 +27,7 @@ export default function ChatScreen() {
     >
       {error && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText} numberOfLines={3}>{error}</Text>
         </View>
       )}
 
@@ -85,7 +85,7 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8F8' },
-  messageList: { paddingVertical: 12 },
+  messageList: { paddingVertical: 12, flexGrow: 1, justifyContent: 'flex-end' },
   inputContainer: {
     flexDirection: 'row', padding: 8, paddingBottom: 12, backgroundColor: '#FFF',
     borderTopWidth: 1, borderTopColor: '#E0E0E0', alignItems: 'flex-end',

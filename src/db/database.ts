@@ -1,11 +1,16 @@
 import * as SQLite from 'expo-sqlite';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
+  if (!dbPromise) {
+    dbPromise = initDatabase();
+  }
+  return dbPromise;
+}
 
-  db = await SQLite.openDatabaseAsync('english-coach.db');
+async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
+  const db = await SQLite.openDatabaseAsync('english-coach.db');
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS conversations (

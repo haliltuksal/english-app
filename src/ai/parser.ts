@@ -5,14 +5,15 @@ export interface ParsedResponse {
 }
 
 export function parseAIResponse(raw: string): ParsedResponse {
-  const separatorIndex = raw.indexOf('\n---\n');
+  // Match --- separator with flexible whitespace (Gemini may add extra newlines)
+  const separatorMatch = raw.match(/\n\s*---\s*\n/);
 
-  if (separatorIndex === -1) {
+  if (!separatorMatch || separatorMatch.index === undefined) {
     return { content: raw.trim(), correction: null, newWord: null };
   }
 
-  const content = raw.substring(0, separatorIndex).trim();
-  const metaSection = raw.substring(separatorIndex + 5);
+  const content = raw.substring(0, separatorMatch.index).trim();
+  const metaSection = raw.substring(separatorMatch.index + separatorMatch[0].length);
 
   let correction: string | null = null;
   let newWord: string | null = null;
@@ -24,6 +25,11 @@ export function parseAIResponse(raw: string): ParsedResponse {
       correction = value.toLowerCase() === 'great!' ? null : value;
     } else if (trimmed.startsWith('New word:')) {
       newWord = trimmed.substring('New word:'.length).trim();
+    } else if (trimmed.startsWith('**Correction:**')) {
+      const value = trimmed.substring('**Correction:**'.length).trim();
+      correction = value.toLowerCase() === 'great!' ? null : value;
+    } else if (trimmed.startsWith('**New word:**')) {
+      newWord = trimmed.substring('**New word:**'.length).trim();
     }
   }
 

@@ -179,20 +179,22 @@ export async function getTotalWordsLearned(): Promise<number> {
 
 export async function getStreak(): Promise<number> {
   const db = await getDatabase();
+  // Use local date formatting to match user's timezone
   const rows = await db.getAllAsync<{ day: string }>(
-    `SELECT DISTINCT date(started_at) as day FROM conversations ORDER BY day DESC`
+    `SELECT DISTINCT date(started_at, 'localtime') as day FROM conversations ORDER BY day DESC`
   );
 
   if (rows.length === 0) return 0;
 
   let streak = 0;
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Format today in local timezone as YYYY-MM-DD
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   for (let i = 0; i < rows.length; i++) {
     const expectedDate = new Date(today);
     expectedDate.setDate(expectedDate.getDate() - i);
-    const expectedStr = expectedDate.toISOString().split('T')[0];
+    const expectedStr = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, '0')}-${String(expectedDate.getDate()).padStart(2, '0')}`;
 
     if (rows[i].day === expectedStr) {
       streak++;

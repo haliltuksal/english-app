@@ -45,4 +45,30 @@ New word: agenda — gündem`;
     expect(result.content).toBe("That's a good point.\n\nI think we should discuss this further in the next meeting.");
     expect(result.newWord).toBe('agenda — gündem');
   });
+
+  test('handles extra whitespace around separator', () => {
+    const raw = `Good job explaining that!
+
+---
+
+Correction: Great!
+New word: thorough — kapsamlı`;
+
+    const result = parseAIResponse(raw);
+    expect(result.content).toBe('Good job explaining that!');
+    expect(result.correction).toBeNull();
+    expect(result.newWord).toBe('thorough — kapsamlı');
+  });
+
+  test('handles bold markdown format from Gemini', () => {
+    const raw = `That makes sense!
+---
+**Correction:** "I have been working" (not "I have working")
+**New word:** efficient — verimli`;
+
+    const result = parseAIResponse(raw);
+    expect(result.content).toBe('That makes sense!');
+    expect(result.correction).toBe('"I have been working" (not "I have working")');
+    expect(result.newWord).toBe('efficient — verimli');
+  });
 });

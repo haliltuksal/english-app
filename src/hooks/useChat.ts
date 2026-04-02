@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getScenarioById, Scenario } from '../scenarios/data';
 import { sendMessage, ChatMessage } from '../ai/gemini';
-import { parseAIResponse, ParsedResponse } from '../ai/parser';
+import { parseAIResponse } from '../ai/parser';
 import * as queries from '../db/queries';
 
 export interface DisplayMessage {
@@ -14,57 +14,68 @@ export interface DisplayMessage {
 
 export function useChat(conversationId: number, scenarioType: string) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // start true to prevent double greeting
   const [isEnded, setIsEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initializedRef = useRef(false);
 
   const scenario: Scenario | null = scenarioType === 'free'
     ? null
     : getScenarioById(scenarioType) ?? null;
 
-  // Load existing messages on mount
+  // Load existing messages on mount, then send greeting if needed
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     (async () => {
-      const rows = await queries.getMessages(conversationId);
-      setMessages(rows.map((r) => ({
-        id: r.id,
-        role: r.role,
-        content: r.content,
-        correction: r.correction,
-        newWord: r.new_word,
-      })));
+      try {
+        const rows = await queries.getMessages(conversationId);
+        const loaded = rows.map((r) => ({
+          id: r.id,
+          role: r.role as 'user' | 'ai',
+          content: r.content,
+          correction: r.correction,
+          newWord: r.new_word,
+        }));
+
+        if (loaded.length > 0) {
+          // Resumed conversation — just load messages
+          setMessages(loaded);
+          // Check if conversation was already ended
+          const conv = (await queries.getActiveConversations()).find(c => c.id === conversationId);
+          if (!conv) setIsEnded(true);
+          setIsLoading(false);
+        } else {
+          // New conversation — send initial AI greeting
+          setIsLoading(true);
+          const greeting = await sendMessage(scenario, [], 'Start the conversation. Greet the user and set the scene.');
+          const parsed = parseAIResponse(greeting);
+
+          // Save hidden "start" user message + AI greeting to DB
+          // This ensures history always starts with user role for Gemini API
+          await queries.addMessage(conversationId, 'user', '[conversation started]');
+          const aiMsgId = await queries.addMessage(
+            conversationId, 'ai', parsed.content, parsed.correction, parsed.newWord
+          );
+
+          if (parsed.newWord) {
+            await saveWord(parsed.newWord, parsed.content, conversationId);
+          }
+
+          // Only show AI greeting to user (hide the system user message)
+          setMessages([{
+            id: aiMsgId, role: 'ai', content: parsed.content,
+            correction: parsed.correction, newWord: parsed.newWord,
+          }]);
+          setIsLoading(false);
+        }
+      } catch (e: any) {
+        setError(e.message);
+        setIsLoading(false);
+      }
     })();
   }, [conversationId]);
-
-  // Send initial AI greeting if no messages yet
-  useEffect(() => {
-    if (messages.length === 0 && !isLoading) {
-      sendInitialGreeting();
-    }
-  }, []);
-
-  const sendInitialGreeting = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const greeting = await sendMessage(scenario, [], 'Start the conversation. Greet the user and set the scene.');
-      const parsed = parseAIResponse(greeting);
-      const msgId = await queries.addMessage(
-        conversationId, 'ai', parsed.content, parsed.correction, parsed.newWord
-      );
-      if (parsed.newWord) {
-        await saveWord(parsed.newWord, parsed.content);
-      }
-      setMessages([{
-        id: msgId, role: 'ai', content: parsed.content,
-        correction: parsed.correction, newWord: parsed.newWord,
-      }]);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [conversationId, scenario]);
 
   const send = useCallback(async (text: string) => {
     if (isLoading || isEnded) return;
@@ -76,29 +87,33 @@ export function useChat(conversationId: number, scenarioType: string) {
 
     const wantsEnd = trimmed.toLowerCase() === 'end';
 
-    // Save user message
-    const userMsgId = await queries.addMessage(conversationId, 'user', trimmed);
-    const userMsg: DisplayMessage = {
-      id: userMsgId, role: 'user', content: trimmed,
-      correction: null, newWord: null,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    setIsLoading(true);
-
     try {
-      // Build history for API
+      // Save user message
+      const userMsgId = await queries.addMessage(conversationId, 'user', trimmed);
+      const userMsg: DisplayMessage = {
+        id: userMsgId, role: 'user', content: trimmed,
+        correction: null, newWord: null,
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      setIsLoading(true);
+
+      // Build history for API — get all DB messages
       const currentMessages = await queries.getMessages(conversationId);
+      // Exclude the last message (current user message) since sendMessage adds it
       const history: ChatMessage[] = currentMessages.slice(0, -1).map((m) => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        text: m.role === 'user' ? m.content : `${m.content}${m.correction ? `\n---\nCorrection: ${m.correction}` : ''}${m.new_word ? `\nNew word: ${m.new_word}` : ''}`,
+        role: m.role === 'user' ? 'user' as const : 'model' as const,
+        text: m.content,
       }));
 
       // Check message count for auto-summary
       const msgCount = currentMessages.length;
       let userText = trimmed;
-      if (wantsEnd || msgCount >= 15) {
-        userText = wantsEnd ? trimmed : trimmed + '\n\n[This is message 15+. Please provide the conversation summary after your response.]';
+      if (wantsEnd) {
+        userText = 'end';
+      } else if (msgCount >= 30) {
+        // 30 total messages ≈ 15 exchanges
+        userText = trimmed + '\n\n[This is message 15+. Please provide the conversation summary after your response.]';
       }
 
       const response = await sendMessage(scenario, history, userText);
@@ -109,7 +124,7 @@ export function useChat(conversationId: number, scenarioType: string) {
       );
 
       if (parsed.newWord) {
-        await saveWord(parsed.newWord, parsed.content);
+        await saveWord(parsed.newWord, parsed.content, conversationId);
       }
 
       const aiMsg: DisplayMessage = {
@@ -118,7 +133,7 @@ export function useChat(conversationId: number, scenarioType: string) {
       };
       setMessages((prev) => [...prev, aiMsg]);
 
-      if (wantsEnd || msgCount >= 15) {
+      if (wantsEnd || msgCount >= 30) {
         setIsEnded(true);
         await queries.endConversation(conversationId, parsed.content);
       }
@@ -132,19 +147,25 @@ export function useChat(conversationId: number, scenarioType: string) {
   return { messages, isLoading, isEnded, error, send };
 }
 
-async function saveWord(newWordStr: string, context: string): Promise<void> {
-  const dashIndex = newWordStr.indexOf('—') !== -1
-    ? newWordStr.indexOf('—')
-    : newWordStr.indexOf(' — ') !== -1
-      ? newWordStr.indexOf(' — ')
-      : newWordStr.indexOf('-');
+async function saveWord(newWordStr: string, context: string, conversationId: number): Promise<void> {
+  // Try em-dash first (expected format), then spaced dash, then last resort hyphen
+  // Use regex to find " — " or " — " pattern to avoid splitting hyphenated words like "self-taught"
+  let word: string;
+  let meaning: string;
 
-  if (dashIndex === -1) return;
-
-  const word = newWordStr.substring(0, dashIndex).trim();
-  const meaning = newWordStr.substring(dashIndex + 1).trim().replace(/^—\s*/, '');
+  const emDashMatch = newWordStr.match(/^(.+?)\s*—\s*(.+)$/);
+  if (emDashMatch) {
+    word = emDashMatch[1].trim();
+    meaning = emDashMatch[2].trim();
+  } else {
+    // Fallback: split on " - " (spaced hyphen) to avoid breaking "self-taught"
+    const spacedHyphenIndex = newWordStr.indexOf(' - ');
+    if (spacedHyphenIndex === -1) return;
+    word = newWordStr.substring(0, spacedHyphenIndex).trim();
+    meaning = newWordStr.substring(spacedHyphenIndex + 3).trim();
+  }
 
   if (word && meaning) {
-    await queries.addVocabulary(word, meaning, context, null);
+    await queries.addVocabulary(word, meaning, context, conversationId);
   }
 }
