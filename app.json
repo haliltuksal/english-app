@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.halil.englishcoach",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "English Coach needs microphone access for voice conversations"
       }
     },
     "plugins": [
