@@ -44,7 +44,46 @@ async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       repetition_count INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id)
     );
+
+    CREATE TABLE IF NOT EXISTS user_progress (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      current_level TEXT NOT NULL DEFAULT 'A2',
+      conversations_at_level INTEGER NOT NULL DEFAULT 0,
+      level_started_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS assessments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT NOT NULL,
+      conversation_id INTEGER,
+      passed INTEGER NOT NULL DEFAULT 0,
+      feedback TEXT,
+      assessed_at TEXT NOT NULL,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    );
   `);
+
+  // Migration: add new columns to conversations if they don't exist
+  const tableInfo = await db.getAllAsync<{name: string}>(`PRAGMA table_info(conversations)`);
+  const columns = tableInfo.map(c => c.name);
+  if (!columns.includes('level')) {
+    await db.execAsync(`ALTER TABLE conversations ADD COLUMN level TEXT DEFAULT 'A2'`);
+  }
+  if (!columns.includes('correction_count')) {
+    await db.execAsync(`ALTER TABLE conversations ADD COLUMN correction_count INTEGER DEFAULT 0`);
+  }
+  if (!columns.includes('user_message_count')) {
+    await db.execAsync(`ALTER TABLE conversations ADD COLUMN user_message_count INTEGER DEFAULT 0`);
+  }
+
+  // Initialize user_progress if empty
+  const progress = await db.getFirstAsync('SELECT id FROM user_progress WHERE id = 1');
+  if (!progress) {
+    await db.runAsync(
+      'INSERT INTO user_progress (id, current_level, conversations_at_level, level_started_at) VALUES (1, ?, 0, ?)',
+      'A2', new Date().toISOString()
+    );
+  }
 
   return db;
 }

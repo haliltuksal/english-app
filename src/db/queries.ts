@@ -11,12 +11,11 @@ export interface ConversationRow {
   summary: string | null;
 }
 
-export async function createConversation(scenarioType: string): Promise<number> {
+export async function createConversation(scenarioType: string, level: string = 'A2'): Promise<number> {
   const db = await getDatabase();
   const result = await db.runAsync(
-    'INSERT INTO conversations (scenario_type, started_at, message_count) VALUES (?, ?, 0)',
-    scenarioType,
-    new Date().toISOString()
+    'INSERT INTO conversations (scenario_type, started_at, message_count, level) VALUES (?, ?, 0, ?)',
+    scenarioType, new Date().toISOString(), level
   );
   return result.lastInsertRowId;
 }
@@ -204,4 +203,110 @@ export async function getStreak(): Promise<number> {
   }
 
   return streak;
+}
+
+// --- User Progress ---
+
+export interface ProgressRow {
+  current_level: string;
+  conversations_at_level: number;
+  level_started_at: string;
+}
+
+export async function getProgress(): Promise<ProgressRow> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<ProgressRow>(
+    'SELECT current_level, conversations_at_level, level_started_at FROM user_progress WHERE id = 1'
+  );
+  return row!;
+}
+
+export async function updateLevel(newLevel: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE user_progress SET current_level = ?, conversations_at_level = 0, level_started_at = ? WHERE id = 1',
+    newLevel, new Date().toISOString()
+  );
+}
+
+export async function incrementConversationsAtLevel(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE user_progress SET conversations_at_level = conversations_at_level + 1 WHERE id = 1'
+  );
+}
+
+// --- Assessments ---
+
+export interface AssessmentRow {
+  id: number;
+  level: string;
+  conversation_id: number | null;
+  passed: number;
+  feedback: string | null;
+  assessed_at: string;
+}
+
+export async function createAssessment(
+  level: string, conversationId: number, passed: boolean, feedback: string
+): Promise<number> {
+  const db = await getDatabase();
+  const result = await db.runAsync(
+    'INSERT INTO assessments (level, conversation_id, passed, feedback, assessed_at) VALUES (?, ?, ?, ?, ?)',
+    level, conversationId, passed ? 1 : 0, feedback, new Date().toISOString()
+  );
+  return result.lastInsertRowId;
+}
+
+export async function getLastAssessment(level: string): Promise<AssessmentRow | null> {
+  const db = await getDatabase();
+  return db.getFirstAsync<AssessmentRow>(
+    'SELECT * FROM assessments WHERE level = ? ORDER BY assessed_at DESC LIMIT 1',
+    level
+  );
+}
+
+// --- Conversation Stats ---
+
+export async function incrementCorrectionCount(conversationId: number): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE conversations SET correction_count = correction_count + 1 WHERE id = ?',
+    conversationId
+  );
+}
+
+export async function incrementUserMessageCount(conversationId: number): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE conversations SET user_message_count = user_message_count + 1 WHERE id = ?',
+    conversationId
+  );
+}
+
+export async function getCorrectionRateAtLevel(level: string, limit: number): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ total_corrections: number; total_messages: number }>(
+    `SELECT
+      COALESCE(SUM(correction_count), 0) as total_corrections,
+      COALESCE(SUM(user_message_count), 0) as total_messages
+    FROM (
+      SELECT correction_count, user_message_count
+      FROM conversations
+      WHERE level = ? AND ended_at IS NOT NULL AND user_message_count > 0
+      ORDER BY ended_at DESC
+      LIMIT ?
+    )`,
+    level, limit
+  );
+  if (!row || row.total_messages === 0) return 1;
+  return row.total_corrections / row.total_messages;
+}
+
+export async function getMasteredVocabCount(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM vocabulary WHERE repetition_count >= 3'
+  );
+  return row?.count ?? 0;
 }
