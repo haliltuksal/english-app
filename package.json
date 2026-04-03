@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
-    "@google/generative-ai": "^0.24.1",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",

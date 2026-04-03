@@ -49,9 +49,9 @@ export default function SettingsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Gemini API Key</Text>
+        <Text style={styles.sectionTitle}>Groq API Key</Text>
         <Text style={styles.sectionDescription}>
-          Get your free API key from Google AI Studio (aistudio.google.com)
+          Get your free API key from console.groq.com
         </Text>
 
         {hasKey && !isEditing ? (
@@ -72,7 +72,7 @@ export default function SettingsScreen() {
               style={styles.input}
               value={key}
               onChangeText={setKey}
-              placeholder="Paste your Gemini API key here"
+              placeholder="Paste your Groq API key here"
               placeholderTextColor="#999"
               autoCapitalize="none"
               autoCorrect={false}

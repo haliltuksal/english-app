@@ -1,9 +1,8 @@
-import { GoogleGenerativeAI, Content } from '@google/generative-ai';
 import * as SecureStore from 'expo-secure-store';
 import { buildSystemPrompt } from './prompts';
 import { Scenario } from '../scenarios/data';
 
-const API_KEY_STORE = 'gemini_api_key';
+const API_KEY_STORE = 'groq_api_key';
 
 export async function getApiKey(): Promise<string | null> {
   return SecureStore.getItemAsync(API_KEY_STORE);
@@ -29,25 +28,39 @@ export async function sendMessage(
 ): Promise<string> {
   const apiKey = await getApiKey();
   if (!apiKey) {
-    throw new Error('API key not set. Please add your Gemini API key in Settings.');
+    throw new Error('API key not set. Please add your Groq API key in Settings.');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
   const systemPrompt = buildSystemPrompt(scenario);
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    systemInstruction: systemPrompt,
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map((msg) => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.text,
+    })),
+    { role: 'user', content: userMessage },
+  ];
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
   });
 
-  const contents: Content[] = history.map((msg) => ({
-    role: msg.role,
-    parts: [{ text: msg.text }],
-  }));
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error?.error?.message || `Groq API error: ${response.status}`);
+  }
 
-  const chat = model.startChat({
-    history: contents,
-  });
-
-  const result = await chat.sendMessage(userMessage);
-  return result.response.text();
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
