@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import * as Speech from 'expo-speech';
 import { speak } from '../utils/tts';
 
 interface ChatBubbleProps {
@@ -14,7 +13,7 @@ export function ChatBubble({ role, content, correction, newWord }: ChatBubblePro
 
   const speakWord = (text: string) => {
     const englishPart = text.split('—')[0].trim().split(' — ')[0].trim();
-    Speech.speak(englishPart, { language: 'en-US', rate: 0.8 });
+    speak(englishPart);
   };
 
   return (

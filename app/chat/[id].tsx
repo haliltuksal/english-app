@@ -1,4 +1,4 @@
-import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useState, useRef } from 'react';
 import { ChatBubble } from '../../src/components/ChatBubble';
@@ -14,6 +14,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   const handleSend = () => {
@@ -23,28 +24,29 @@ export default function ChatScreen() {
   };
 
   const handleMicPress = async () => {
+    setVoiceError(null);
     if (isRecording) {
-      // Stop and transcribe
       setIsRecording(false);
       setIsTranscribing(true);
       try {
         const text = await stopRecordingAndTranscribe();
         if (text.trim()) {
           send(text.trim());
+        } else {
+          setVoiceError('Could not hear anything. Try again.');
         }
       } catch (e: any) {
-        // Show transcription in input if it fails
         cancelRecording();
+        setVoiceError(e.message || 'Voice input failed. Try typing instead.');
       } finally {
         setIsTranscribing(false);
       }
     } else {
-      // Start recording
       try {
         await startRecording();
         setIsRecording(true);
       } catch (e: any) {
-        // Permission denied or other error
+        setVoiceError(e.message || 'Microphone not available.');
       }
     }
   };
@@ -55,9 +57,9 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={90}
     >
-      {error && (
+      {(error || voiceError) && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText} numberOfLines={3}>{error}</Text>
+          <Text style={styles.errorText} numberOfLines={3}>{error || voiceError}</Text>
         </View>
       )}
 
