@@ -24,14 +24,15 @@ export interface ChatMessage {
 export async function sendMessage(
   scenario: Scenario | null,
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  levelId: string = 'A2'
 ): Promise<string> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('API key not set. Please add your Groq API key in Settings.');
   }
 
-  const systemPrompt = buildSystemPrompt(scenario);
+  const systemPrompt = buildSystemPrompt(scenario, levelId);
 
   const messages = [
     { role: 'system', content: systemPrompt },

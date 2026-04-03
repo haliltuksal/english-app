@@ -1,11 +1,17 @@
 import { Scenario } from '../scenarios/data';
+import { getLevelById } from '../levels/data';
 
-export function buildSystemPrompt(scenario: Scenario | null): string {
+export function buildSystemPrompt(scenario: Scenario | null, levelId: string = 'A2'): string {
   const roleDescription = scenario
     ? `You are ${scenario.aiRole}. ${scenario.context}`
     : 'You are a friendly English conversation partner. Talk about any topic the user wants.';
 
-  return `${roleDescription}
+  const level = getLevelById(levelId);
+  const levelInstruction = level
+    ? `\nLANGUAGE LEVEL: ${level.id} (${level.name})\n${level.aiComplexity}`
+    : '';
+
+  return `${roleDescription}${levelInstruction}
 
 IMPORTANT RULES:
 1. The user is a Turkish-speaking software developer learning English at B1-B2 level.

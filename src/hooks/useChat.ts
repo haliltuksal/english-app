@@ -3,6 +3,7 @@ import { getScenarioById, Scenario } from '../scenarios/data';
 import { sendMessage, ChatMessage } from '../ai/gemini';
 import { parseAIResponse } from '../ai/parser';
 import * as queries from '../db/queries';
+import { getProgress, incrementCorrectionCount, incrementUserMessageCount, incrementConversationsAtLevel } from '../db/queries';
 
 export interface DisplayMessage {
   id: number;
@@ -17,6 +18,7 @@ export function useChat(conversationId: number, scenarioType: string) {
   const [isLoading, setIsLoading] = useState(true); // start true to prevent double greeting
   const [isEnded, setIsEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [levelId, setLevelId] = useState<string>('A2');
   const initializedRef = useRef(false);
 
   const scenario: Scenario | null = scenarioType === 'free'
@@ -30,6 +32,10 @@ export function useChat(conversationId: number, scenarioType: string) {
 
     (async () => {
       try {
+        const progress = await getProgress();
+        const currentLevelId = progress?.current_level ?? 'A2';
+        setLevelId(currentLevelId);
+
         const rows = await queries.getMessages(conversationId);
         const loaded = rows.map((r) => ({
           id: r.id,
@@ -49,7 +55,7 @@ export function useChat(conversationId: number, scenarioType: string) {
         } else {
           // New conversation — send initial AI greeting
           setIsLoading(true);
-          const greeting = await sendMessage(scenario, [], 'Start the conversation. Greet the user and set the scene.');
+          const greeting = await sendMessage(scenario, [], 'Start the conversation. Greet the user and set the scene.', currentLevelId);
           const parsed = parseAIResponse(greeting);
 
           // Save hidden "start" user message + AI greeting to DB
@@ -90,6 +96,7 @@ export function useChat(conversationId: number, scenarioType: string) {
     try {
       // Save user message
       const userMsgId = await queries.addMessage(conversationId, 'user', trimmed);
+      await incrementUserMessageCount(conversationId);
       const userMsg: DisplayMessage = {
         id: userMsgId, role: 'user', content: trimmed,
         correction: null, newWord: null,
@@ -116,8 +123,12 @@ export function useChat(conversationId: number, scenarioType: string) {
         userText = trimmed + '\n\n[This is message 15+. Please provide the conversation summary after your response.]';
       }
 
-      const response = await sendMessage(scenario, history, userText);
+      const response = await sendMessage(scenario, history, userText, levelId);
       const parsed = parseAIResponse(response);
+
+      if (parsed.correction !== null) {
+        await incrementCorrectionCount(conversationId);
+      }
 
       const aiMsgId = await queries.addMessage(
         conversationId, 'ai', parsed.content, parsed.correction, parsed.newWord
@@ -136,13 +147,14 @@ export function useChat(conversationId: number, scenarioType: string) {
       if (wantsEnd || msgCount >= 30) {
         setIsEnded(true);
         await queries.endConversation(conversationId, parsed.content);
+        await incrementConversationsAtLevel();
       }
     } catch (e: any) {
       setError(e.message);
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, scenario, isLoading, isEnded]);
+  }, [conversationId, scenario, isLoading, isEnded, levelId]);
 
   return { messages, isLoading, isEnded, error, send };
 }
