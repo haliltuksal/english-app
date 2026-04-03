@@ -1,109 +1,76 @@
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { useVocabulary } from '../../src/hooks/useVocabulary';
-import { FlashCard } from '../../src/components/FlashCard';
-import { VocabularyRow } from '../../src/db/queries';
-
-type Mode = 'list' | 'review';
+import { getAllUserWords, UserWordWithWord } from '../../src/db/word-queries';
+import { speak } from '../../src/utils/tts';
 
 export default function VocabularyScreen() {
-  const { allWords, dueWords, isLoading, refresh, reviewWord } = useVocabulary();
-  const [mode, setMode] = useState<Mode>('list');
-  const [reviewIndex, setReviewIndex] = useState(0);
+  const [words, setWords] = useState<UserWordWithWord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      refresh();
-      setReviewIndex(0);
+      (async () => {
+        setIsLoading(true);
+        const w = await getAllUserWords();
+        setWords(w);
+        setIsLoading(false);
+      })();
     }, [])
   );
 
-  const handleReview = async (word: VocabularyRow, correct: boolean) => {
-    await reviewWord(word, correct);
-    setReviewIndex((prev) => prev + 1);
-  };
-
-  if (mode === 'review') {
-    if (reviewIndex >= dueWords.length) {
-      return (
-        <View style={styles.centered}>
-          <Text style={styles.doneEmoji}>🎉</Text>
-          <Text style={styles.doneText}>All done! No more words to review.</Text>
-          <TouchableOpacity style={styles.backButton} onPress={() => { setMode('list'); setReviewIndex(0); }}>
-            <Text style={styles.backButtonText}>Back to List</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    const currentWord = dueWords[reviewIndex];
+  if (words.length === 0 && !isLoading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.reviewProgress}>
-          {reviewIndex + 1} / {dueWords.length}
-        </Text>
-        <FlashCard
-          word={currentWord.word}
-          turkishMeaning={currentWord.turkish_meaning}
-          exampleSentence={currentWord.example_sentence}
-          onCorrect={() => handleReview(currentWord, true)}
-          onIncorrect={() => handleReview(currentWord, false)}
-        />
+        <Text style={styles.emptyText}>No words learned yet. Start a session!</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {dueWords.length > 0 && (
-        <TouchableOpacity
-          style={styles.reviewBanner}
-          onPress={() => { setMode('review'); setReviewIndex(0); }}
-        >
-          <Text style={styles.reviewBannerText}>
-            📝 {dueWords.length} words to review — Start
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {allWords.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No words yet. Start a conversation to build your vocabulary!</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={allWords}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <View style={styles.wordRow}>
+    <FlatList
+      style={styles.container}
+      data={words}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={({ item }) => {
+        const rate = item.seen_count > 0 ? Math.round((item.correct_count / item.seen_count) * 100) : 0;
+        const rateColor = rate >= 80 ? '#4CAF50' : rate >= 60 ? '#FF9800' : '#F44336';
+        return (
+          <TouchableOpacity style={styles.wordRow} onPress={() => speak(item.word)}>
+            <View style={styles.wordInfo}>
               <Text style={styles.wordText}>{item.word}</Text>
-              <Text style={styles.meaningText}>{item.turkish_meaning}</Text>
+              <Text style={styles.translationText}>{item.translation}</Text>
+              <Text style={styles.metaText}>
+                Seen {item.seen_count}x | {item.difficulty}
+              </Text>
             </View>
-          )}
-          contentContainerStyle={styles.list}
-        />
-      )}
-    </View>
+            <View style={styles.statsCol}>
+              <Text style={[styles.rateText, { color: rateColor }]}>{rate}%</Text>
+              <Text style={styles.statsLabel}>success</Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }}
+      contentContainerStyle={styles.list}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8F8' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F8F8', padding: 20 },
-  list: { paddingBottom: 20 },
-  reviewBanner: { backgroundColor: '#FF9800', padding: 14, margin: 12, borderRadius: 12, alignItems: 'center' },
-  reviewBannerText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
-  wordRow: {
-    backgroundColor: '#FFF', padding: 14, marginHorizontal: 12, marginVertical: 4,
-    borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  wordText: { fontSize: 16, fontWeight: '600', color: '#333' },
-  meaningText: { fontSize: 14, color: '#777' },
+  list: { paddingVertical: 8, paddingBottom: 20 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   emptyText: { fontSize: 15, color: '#999', textAlign: 'center' },
-  doneEmoji: { fontSize: 48, marginBottom: 12 },
-  doneText: { fontSize: 18, fontWeight: '600', color: '#333' },
-  backButton: { marginTop: 16, backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
-  backButtonText: { color: '#FFF', fontWeight: '600' },
-  reviewProgress: { fontSize: 14, color: '#999', marginBottom: 12 },
+  wordRow: {
+    backgroundColor: '#FFF', borderRadius: 10, padding: 14,
+    marginHorizontal: 12, marginVertical: 4,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  wordInfo: { flex: 1 },
+  wordText: { fontSize: 17, fontWeight: '600', color: '#333' },
+  translationText: { fontSize: 14, color: '#007AFF', marginTop: 2 },
+  metaText: { fontSize: 12, color: '#999', marginTop: 4 },
+  statsCol: { alignItems: 'center', marginLeft: 12 },
+  rateText: { fontSize: 20, fontWeight: '700' },
+  statsLabel: { fontSize: 11, color: '#999', marginTop: 2 },
 });

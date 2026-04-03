@@ -12,6 +12,14 @@ export default function RootLayout() {
           headerBackTitle: 'Back',
         }}
       />
+      <Stack.Screen
+        name="session/today"
+        options={{
+          headerShown: true,
+          headerTitle: 'Daily Session',
+          headerBackTitle: 'Back',
+        }}
+      />
     </Stack>
   );
 }
