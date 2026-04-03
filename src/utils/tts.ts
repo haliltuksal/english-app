@@ -1,6 +1,15 @@
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 
 let isSpeaking = false;
+
+async function ensureSpeakerOutput(): Promise<void> {
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: false,
+    playsInSilentModeIOS: true,
+    playThroughEarpieceAndroid: false,
+  });
+}
 
 export async function speak(text: string, rate: number = 0.85): Promise<void> {
   if (isSpeaking) {
@@ -9,6 +18,7 @@ export async function speak(text: string, rate: number = 0.85): Promise<void> {
     return;
   }
 
+  await ensureSpeakerOutput();
   isSpeaking = true;
   Speech.speak(text, {
     language: 'en-US',
