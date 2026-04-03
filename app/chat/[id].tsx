@@ -1,8 +1,9 @@
-import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useState, useRef } from 'react';
 import { ChatBubble } from '../../src/components/ChatBubble';
 import { useChat } from '../../src/hooks/useChat';
+import { startRecording, stopRecordingAndTranscribe, cancelRecording } from '../../src/ai/whisper';
 
 export default function ChatScreen() {
   const { id, scenario } = useLocalSearchParams<{ id: string; scenario: string }>();
@@ -11,12 +12,41 @@ export default function ChatScreen() {
 
   const { messages, isLoading, isEnded, error, send } = useChat(conversationId, scenarioType);
   const [inputText, setInputText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
     send(inputText);
     setInputText('');
+  };
+
+  const handleMicPress = async () => {
+    if (isRecording) {
+      // Stop and transcribe
+      setIsRecording(false);
+      setIsTranscribing(true);
+      try {
+        const text = await stopRecordingAndTranscribe();
+        if (text.trim()) {
+          send(text.trim());
+        }
+      } catch (e: any) {
+        // Show transcription in input if it fails
+        cancelRecording();
+      } finally {
+        setIsTranscribing(false);
+      }
+    } else {
+      // Start recording
+      try {
+        await startRecording();
+        setIsRecording(true);
+      } catch (e: any) {
+        // Permission denied or other error
+      }
+    }
   };
 
   return (
@@ -47,9 +77,9 @@ export default function ChatScreen() {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
 
-      {isLoading && (
+      {(isLoading || isTranscribing) && (
         <View style={styles.typingIndicator}>
-          <Text style={styles.typingText}>Typing...</Text>
+          <Text style={styles.typingText}>{isTranscribing ? 'Transcribing...' : 'Typing...'}</Text>
         </View>
       )}
 
@@ -59,14 +89,21 @@ export default function ChatScreen() {
         </View>
       ) : (
         <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={[styles.micButton, isRecording && styles.micButtonRecording]}
+            onPress={handleMicPress}
+            disabled={isLoading || isTranscribing}
+          >
+            <Text style={styles.micButtonText}>{isRecording ? '⏹' : '🎤'}</Text>
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Type in English..."
+            placeholder={isRecording ? 'Recording...' : 'Type or tap 🎤'}
             placeholderTextColor="#999"
             multiline
-            editable={!isLoading}
+            editable={!isLoading && !isRecording}
             onSubmitEditing={handleSend}
             returnKeyType="send"
           />
@@ -90,6 +127,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', padding: 8, paddingBottom: 12, backgroundColor: '#FFF',
     borderTopWidth: 1, borderTopColor: '#E0E0E0', alignItems: 'flex-end',
   },
+  micButton: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: '#F0F0F0',
+    justifyContent: 'center', alignItems: 'center', marginRight: 8,
+  },
+  micButtonRecording: {
+    backgroundColor: '#FF3B30',
+  },
+  micButtonText: { fontSize: 20 },
   input: {
     flex: 1, backgroundColor: '#F0F0F0', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, maxHeight: 100,
