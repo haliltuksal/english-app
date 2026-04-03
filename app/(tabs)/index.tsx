@@ -20,6 +20,7 @@ export default function ChatPickerScreen() {
   const { progress, isLoading: progressLoading } = useProgress();
   const [activeConversations, setActiveConversations] = useState<ActiveConversation[]>([]);
   const [showAllLevels, setShowAllLevels] = useState(false);
+  const [showActiveChats, setShowActiveChats] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,11 +92,19 @@ export default function ChatPickerScreen() {
               />
             )}
 
-            {/* Active conversations */}
+            {/* Active conversations — accordion */}
             {activeConversations.length > 0 && (
               <View style={styles.activeSection}>
-                <Text style={styles.activeSectionTitle}>Continue Conversation</Text>
-                {activeConversations.map((conv) => (
+                <TouchableOpacity
+                  style={styles.activeSectionHeader}
+                  onPress={() => setShowActiveChats(!showActiveChats)}
+                >
+                  <Text style={styles.activeSectionTitle}>
+                    Continue Conversation ({activeConversations.length})
+                  </Text>
+                  <Text style={styles.activeSectionArrow}>{showActiveChats ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
+                {showActiveChats && activeConversations.map((conv) => (
                   <TouchableOpacity
                     key={conv.id}
                     style={styles.activeCard}
@@ -156,7 +165,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8F8' },
   list: { paddingBottom: 20 },
   activeSection: { paddingHorizontal: 16, paddingTop: 12 },
-  activeSectionTitle: { fontSize: 14, fontWeight: '600', color: '#999', marginBottom: 8, textTransform: 'uppercase' },
+  activeSectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+  },
+  activeSectionTitle: { fontSize: 14, fontWeight: '600', color: '#999', textTransform: 'uppercase' },
+  activeSectionArrow: { fontSize: 12, color: '#999' },
   activeCard: {
     backgroundColor: '#E3F2FD', borderRadius: 12, padding: 14, marginBottom: 8,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
