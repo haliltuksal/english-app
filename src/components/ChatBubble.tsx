@@ -21,9 +21,14 @@ export function ChatBubble({ role, content, correction, newWord }: ChatBubblePro
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
         <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>{content}</Text>
         {!isUser && (
-          <TouchableOpacity onPress={() => speak(content)} style={styles.listenButton}>
-            <Text style={styles.listenButtonText}>Listen</Text>
-          </TouchableOpacity>
+          <View style={styles.listenRow}>
+            <TouchableOpacity onPress={() => speak(content, 0.85)} style={styles.listenButton}>
+              <Text style={styles.listenButtonText}>Listen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => speak(content, 1.7)} style={styles.listenButton}>
+              <Text style={styles.listenButtonText}>x2</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
       {!isUser && (correction || newWord) && (
@@ -55,9 +60,13 @@ const styles = StyleSheet.create({
   text: { fontSize: 16, lineHeight: 22 },
   userText: { color: '#FFF' },
   aiText: { color: '#333' },
-  listenButton: {
-    alignSelf: 'flex-end',
+  listenRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 6,
     marginTop: 6,
+  },
+  listenButton: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     backgroundColor: 'rgba(0,0,0,0.06)',
