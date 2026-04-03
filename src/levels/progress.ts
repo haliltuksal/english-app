@@ -16,7 +16,7 @@ export interface LevelProgress {
 
 export async function getLevelProgress(): Promise<LevelProgress> {
   const progress = await queries.getProgress();
-  const currentLevel = getLevelById(progress.current_level)!;
+  const currentLevel = getLevelById(progress.current_level) ?? getLevelById('A2')!;
   const nextLevel = getNextLevel(progress.current_level);
   const correctionRate = await queries.getCorrectionRateAtLevel(progress.current_level, 10);
   const vocabMastered = await queries.getMasteredVocabCount();

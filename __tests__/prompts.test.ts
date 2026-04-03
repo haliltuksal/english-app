@@ -10,6 +10,7 @@ describe('buildSystemPrompt', () => {
       difficulty: 'easy',
       aiRole: 'a friendly tech lead running the daily standup',
       context: 'You are leading a daily standup meeting.',
+      level: 'A2',
     });
 
     expect(prompt).toContain('a friendly tech lead running the daily standup');

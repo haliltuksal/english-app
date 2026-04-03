@@ -41,8 +41,11 @@ export function parseAssessmentResult(response: string): AssessmentResult | null
   if (!resultMatch) return null;
 
   const passed = resultMatch[1].toUpperCase() === 'PASS';
-  const feedbackMatch = response.match(/Feedback:\s*(.+)/i);
-  const levelMatch = response.match(/Level:\s*(\w+)/i);
+  // Capture multi-line feedback (everything between Feedback: and Level:)
+  const feedbackMatch = response.match(/Feedback:\s*([\s\S]+?)(?=\nLevel:|$)/i);
+  // Only match Level: after ASSESSMENT_RESULT to avoid false positives
+  const afterResult = response.substring(resultMatch.index! + resultMatch[0].length);
+  const levelMatch = afterResult.match(/Level:\s*([A-C][12])/i);
 
   return {
     passed,

@@ -69,7 +69,7 @@ export default function ChatPickerScreen() {
   const currentIdx = levels.findIndex((l) => l.id === currentLevelId);
   const previousLevels = levels.slice(0, currentIdx);
 
-  const previousSections = previousLevels
+  const previousSections = [...previousLevels]
     .reverse()
     .map((level) => ({
       title: `${level.id} — ${level.name}`,

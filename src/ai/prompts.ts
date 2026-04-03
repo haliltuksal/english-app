@@ -14,7 +14,7 @@ export function buildSystemPrompt(scenario: Scenario | null, levelId: string = '
   return `${roleDescription}${levelInstruction}
 
 IMPORTANT RULES:
-1. The user is a Turkish-speaking software developer learning English at B1-B2 level.
+1. The user is a Turkish-speaking software developer learning English at ${level?.id || 'A2'} level.
 2. Use clear, natural English. Gradually increase complexity as the conversation progresses.
 3. Keep the conversation going — ask follow-up questions, share related thoughts, advance the topic.
 4. Be encouraging and supportive, not pedantic.

@@ -169,6 +169,7 @@ export function useChat(conversationId: number, scenarioType: string) {
           setAssessmentResult(result);
           setIsEnded(true);
           await queries.endConversation(conversationId, parsed.content);
+          await incrementConversationsAtLevel();
         }
       } else if (wantsEnd || msgCount >= 30) {
         setIsEnded(true);
