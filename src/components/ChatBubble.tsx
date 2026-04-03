@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../utils/tts';
 
 interface ChatBubbleProps {
   role: 'user' | 'ai';
@@ -21,6 +22,11 @@ export function ChatBubble({ role, content, correction, newWord }: ChatBubblePro
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
         <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>{content}</Text>
       </View>
+      {!isUser && (
+        <TouchableOpacity onPress={() => speak(content)} style={styles.speakButton}>
+          <Text style={styles.speakButtonText}>🔊</Text>
+        </TouchableOpacity>
+      )}
       {!isUser && (correction || newWord) && (
         <View style={styles.metaContainer}>
           {correction && (
@@ -60,4 +66,13 @@ const styles = StyleSheet.create({
   metaLabel: { fontSize: 13 },
   metaText: { fontSize: 13, color: '#555', flex: 1 },
   speakIcon: { fontSize: 13 },
+  speakButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  speakButtonText: {
+    fontSize: 16,
+  },
 });
