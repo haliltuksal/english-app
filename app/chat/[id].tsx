@@ -92,7 +92,7 @@ export default function ChatScreen() {
     );
   };
 
-  return (
+  return (<>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -160,13 +160,14 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <WordPopup
-        word={lookupWord}
-        sentenceContext={lookupContext}
-        conversationId={conversationId}
-        onClose={() => setLookupWord(null)}
-      />
     </KeyboardAvoidingView>
+    <WordPopup
+      word={lookupWord}
+      sentenceContext={lookupContext}
+      conversationId={conversationId}
+      onClose={() => setLookupWord(null)}
+    />
+  </>
   );
 }
 

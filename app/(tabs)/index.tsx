@@ -67,7 +67,6 @@ export default function ChatPickerScreen() {
     .filter((s) => s.data.length > 0);
 
   // Other levels and their scenarios (both lower and higher)
-  const currentIdx = levels.findIndex((l) => l.id === currentLevelId);
   const otherLevels = levels.filter((l) => l.id !== currentLevelId);
 
   const otherSections = otherLevels

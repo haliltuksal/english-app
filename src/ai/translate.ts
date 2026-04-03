@@ -39,7 +39,8 @@ example: [One short example sentence using this word]`,
   }
 
   const data = await response.json();
-  const text = data.choices[0].message.content.trim();
+  const text = data?.choices?.[0]?.message?.content?.trim() ?? '';
+  if (!text) throw new Error('Empty translation response.');
 
   const meaningMatch = text.match(/meaning:\s*(.+)/i);
   const exampleMatch = text.match(/example:\s*(.+)/i);

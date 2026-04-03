@@ -19,28 +19,32 @@ export function WordPopup({ word, sentenceContext, conversationId, onClose }: Wo
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (word) {
-      lookup();
-      setSaved(false);
-      setError(null);
-    }
-  }, [word]);
-
-  const lookup = async () => {
     if (!word) return;
+
+    let cancelled = false;
+    setSaved(false);
+    setError(null);
     setIsLoading(true);
     setMeaning('');
     setExample('');
-    try {
-      const result = await translateWord(word, sentenceContext);
-      setMeaning(result.meaning);
-      setExample(result.example);
-    } catch (e: any) {
-      setError('Could not translate. Check your connection.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+    translateWord(word, sentenceContext)
+      .then((result) => {
+        if (cancelled) return;
+        setMeaning(result.meaning);
+        setExample(result.example);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setError('Could not translate. Check your connection.');
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [word, sentenceContext]);
 
   const saveToVocabulary = async () => {
     if (!word || !meaning) return;
