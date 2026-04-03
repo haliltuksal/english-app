@@ -2,6 +2,7 @@ import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, Keyboard
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useRef } from 'react';
 import { ChatBubble } from '../../src/components/ChatBubble';
+import { WordPopup } from '../../src/components/WordPopup';
 import { useChat } from '../../src/hooks/useChat';
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from '../../src/ai/whisper';
 
@@ -16,7 +17,14 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [lookupWord, setLookupWord] = useState<string | null>(null);
+  const [lookupContext, setLookupContext] = useState('');
   const flatListRef = useRef<FlatList>(null);
+
+  const handleWordTap = (word: string, context: string) => {
+    setLookupWord(word);
+    setLookupContext(context);
+  };
 
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
@@ -106,6 +114,7 @@ export default function ChatScreen() {
             content={item.content}
             correction={item.correction}
             newWord={item.newWord}
+            onWordTap={handleWordTap}
           />
         )}
         contentContainerStyle={styles.messageList}
@@ -151,6 +160,12 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       )}
+      <WordPopup
+        word={lookupWord}
+        sentenceContext={lookupContext}
+        conversationId={conversationId}
+        onClose={() => setLookupWord(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
