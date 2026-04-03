@@ -127,13 +127,15 @@ export default function ChatScreen() {
             onPress={handleMicPress}
             disabled={isLoading || isTranscribing}
           >
-            <Text style={styles.micButtonText}>{isRecording ? '⏹' : '🎤'}</Text>
+            <Text style={[styles.micButtonText, isRecording && styles.micButtonTextRecording]}>
+              {isRecording ? 'Stop' : 'Mic'}
+            </Text>
           </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder={isRecording ? 'Recording...' : 'Type or tap 🎤'}
+            placeholder={isRecording ? 'Listening...' : 'Type or tap Mic'}
             placeholderTextColor="#999"
             multiline
             editable={!isLoading && !isRecording}
@@ -167,7 +169,8 @@ const styles = StyleSheet.create({
   micButtonRecording: {
     backgroundColor: '#FF3B30',
   },
-  micButtonText: { fontSize: 20 },
+  micButtonText: { fontSize: 12, fontWeight: '700', color: '#555' },
+  micButtonTextRecording: { color: '#FFF' },
   input: {
     flex: 1, backgroundColor: '#F0F0F0', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, maxHeight: 100,

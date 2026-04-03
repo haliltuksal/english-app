@@ -1,5 +1,4 @@
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import { getApiKey } from './gemini';
 
 let recording: Audio.Recording | null = null;
@@ -48,19 +47,16 @@ export function cancelRecording(): void {
   }
 }
 
+export function isCurrentlyRecording(): boolean {
+  return recording !== null;
+}
+
 async function transcribeAudio(uri: string): Promise<string> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('API key not set. Please add your Groq API key in Settings.');
   }
 
-  // Read file as base64 and create form data
-  const fileInfo = await FileSystem.getInfoAsync(uri);
-  if (!fileInfo.exists) {
-    throw new Error('Audio file not found.');
-  }
-
-  // Upload using fetch with FormData
   const formData = new FormData();
   formData.append('file', {
     uri,
@@ -80,8 +76,8 @@ async function transcribeAudio(uri: string): Promise<string> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error?.error?.message || `Transcription failed: ${response.status}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `Transcription failed: ${response.status}`);
   }
 
   const data = await response.json();
