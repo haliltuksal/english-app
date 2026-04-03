@@ -61,6 +61,38 @@ async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       assessed_at TEXT NOT NULL,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id)
     );
+
+    CREATE TABLE IF NOT EXISTS words (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word TEXT NOT NULL UNIQUE,
+      translation TEXT NOT NULL,
+      definition TEXT,
+      category TEXT NOT NULL DEFAULT 'everyday',
+      difficulty TEXT NOT NULL DEFAULT 'A2',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_words (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      word_id INTEGER NOT NULL,
+      seen_count INTEGER NOT NULL DEFAULT 0,
+      correct_count INTEGER NOT NULL DEFAULT 0,
+      last_seen_at TEXT,
+      next_review_at TEXT NOT NULL,
+      ease_factor REAL NOT NULL DEFAULT 2.5,
+      FOREIGN KEY (word_id) REFERENCES words(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_date TEXT NOT NULL,
+      word_ids TEXT NOT NULL,
+      new_word_count INTEGER NOT NULL DEFAULT 0,
+      review_word_count INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      quiz_score REAL,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Migration: add new columns to conversations if they don't exist
