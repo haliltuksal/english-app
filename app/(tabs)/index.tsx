@@ -19,7 +19,7 @@ export default function ChatPickerScreen() {
   const router = useRouter();
   const { progress, isLoading: progressLoading } = useProgress();
   const [activeConversations, setActiveConversations] = useState<ActiveConversation[]>([]);
-  const [showPreviousLevels, setShowPreviousLevels] = useState(false);
+  const [showAllLevels, setShowAllLevels] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,12 +65,11 @@ export default function ChatPickerScreen() {
     }))
     .filter((s) => s.data.length > 0);
 
-  // Previous levels and their scenarios
+  // Other levels and their scenarios (both lower and higher)
   const currentIdx = levels.findIndex((l) => l.id === currentLevelId);
-  const previousLevels = levels.slice(0, currentIdx);
+  const otherLevels = levels.filter((l) => l.id !== currentLevelId);
 
-  const previousSections = [...previousLevels]
-    .reverse()
+  const otherSections = otherLevels
     .map((level) => ({
       title: `${level.id} — ${level.name}`,
       data: getScenariosByLevel(level.id),
@@ -80,7 +79,7 @@ export default function ChatPickerScreen() {
   return (
     <View style={styles.container}>
       <SectionList
-        sections={[...sections, ...(showPreviousLevels ? previousSections : [])]}
+        sections={[...sections, ...(showAllLevels ? otherSections : [])]}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View>
@@ -136,26 +135,15 @@ export default function ChatPickerScreen() {
           />
         )}
         ListFooterComponent={
-          previousLevels.length > 0 ? (
-            <View>
-              {!showPreviousLevels ? (
-                <TouchableOpacity
-                  style={styles.previousToggle}
-                  onPress={() => setShowPreviousLevels(true)}
-                >
-                  <Text style={styles.previousToggleText}>
-                    Show Previous Levels ({previousLevels.length})
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.previousToggle}
-                  onPress={() => setShowPreviousLevels(false)}
-                >
-                  <Text style={styles.previousToggleText}>Hide Previous Levels</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          otherSections.length > 0 ? (
+            <TouchableOpacity
+              style={styles.otherLevelsToggle}
+              onPress={() => setShowAllLevels(!showAllLevels)}
+            >
+              <Text style={styles.otherLevelsToggleText}>
+                {showAllLevels ? 'Hide Other Levels' : `Browse All Levels (${otherSections.length})`}
+              </Text>
+            </TouchableOpacity>
           ) : null
         }
         contentContainerStyle={styles.list}
@@ -182,9 +170,9 @@ const styles = StyleSheet.create({
     fontSize: 18, fontWeight: '700', color: '#333', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#333', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
-  previousToggle: {
-    marginHorizontal: 16, marginTop: 16, padding: 14,
+  otherLevelsToggle: {
+    marginHorizontal: 16, marginTop: 16, marginBottom: 8, padding: 14,
     backgroundColor: '#F0F0F0', borderRadius: 10, alignItems: 'center',
   },
-  previousToggleText: { fontSize: 15, fontWeight: '600', color: '#666' },
+  otherLevelsToggleText: { fontSize: 15, fontWeight: '600', color: '#666' },
 });

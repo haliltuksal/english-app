@@ -29,8 +29,9 @@ New word: [Pick ONE useful English word or phrase from YOUR response and provide
 
 RULES FOR CORRECTIONS:
 - Only correct clear mistakes, not style preferences
-- Be brief: show the correct form and the wrong form
-- Example: "worked on fixing" (not "worked on fix")
+- Show the correct form, then briefly explain WHY and suggest a better way to say it
+- Format: "correct form" (not "wrong form") — explanation/suggestion
+- Example: "I worked on fixing the bug" (not "I worked on fix the bug") — after "worked on" use the -ing form (gerund). A more natural way: "I spent yesterday fixing the login bug."
 
 RULES FOR NEW WORDS:
 - Pick words the user likely doesn't know yet
