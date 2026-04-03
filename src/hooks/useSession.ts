@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { WordRow, UserWordWithWord, getNewWordsForLevel, getDueReviewWords, getSeenWordIds, createUserWord, updateUserWordReview, createDailySession, completeSession, getTodaySession } from '../db/word-queries';
+import { WordRow, UserWordWithWord, getNewWordsForLevel, getDueReviewWords, getSeenWordIds, createUserWord, updateUserWordReview, getUserWord, createDailySession, completeSession, getTodaySession } from '../db/word-queries';
 import { getProgress } from '../db/queries';
 import { teachWord, generateQuiz, checkAnswer, QuizQuestion, TeachingContent } from '../ai/teach';
 import { calculateNextReview } from '../utils/spaced-repetition';
@@ -164,12 +164,15 @@ export function useSession() {
     const correct = checkAnswer(question, answer);
     const newAnswers = [...state.quizAnswers, correct];
 
-    // Find the word for this question and update stats
+    // Find the word for this question and update stats using actual DB values
     const wordEntry = state.words[state.quizIndex];
     if (wordEntry) {
+      const userWord = await getUserWord(wordEntry.wordId);
+      const currentRep = userWord?.seen_count ?? 0;
+      const currentEase = userWord?.ease_factor ?? 2.5;
       const review = calculateNextReview({
-        repetitionCount: correct ? 1 : 0,
-        easeFactor: 2.5,
+        repetitionCount: currentRep,
+        easeFactor: currentEase,
         correct,
       });
       await updateUserWordReview(

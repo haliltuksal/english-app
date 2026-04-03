@@ -55,7 +55,7 @@ export default function SessionScreen() {
           teaching={session.currentTeaching}
           isLoading={session.isLoadingTeaching}
           onNext={session.nextWord}
-          currentIndex={session.currentIndex}
+          currentIndex={session.currentIndex + 1}
           totalWords={session.words.length}
         />
       </View>
@@ -74,7 +74,7 @@ export default function SessionScreen() {
         <QuizCard
           question={currentQuestion}
           onAnswer={session.answerQuiz}
-          questionIndex={session.quizIndex}
+          questionIndex={session.quizIndex + 1}
           totalQuestions={session.quizQuestions.length}
         />
       </View>
