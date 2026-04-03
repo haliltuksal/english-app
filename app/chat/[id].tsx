@@ -1,5 +1,5 @@
 import { View, TextInput, FlatList, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useRef } from 'react';
 import { ChatBubble } from '../../src/components/ChatBubble';
 import { useChat } from '../../src/hooks/useChat';
@@ -7,10 +7,11 @@ import { startRecording, stopRecordingAndTranscribe, cancelRecording } from '../
 
 export default function ChatScreen() {
   const { id, scenario } = useLocalSearchParams<{ id: string; scenario: string }>();
+  const router = useRouter();
   const conversationId = parseInt(id, 10);
   const scenarioType = scenario ?? 'free';
 
-  const { messages, isLoading, isEnded, error, send } = useChat(conversationId, scenarioType);
+  const { messages, isLoading, isEnded, error, send, assessmentResult } = useChat(conversationId, scenarioType);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -51,6 +52,38 @@ export default function ChatScreen() {
     }
   };
 
+  const renderEndBanner = () => {
+    if (assessmentResult) {
+      if (assessmentResult.passed) {
+        return (
+          <View style={styles.assessPassBanner}>
+            <Text style={styles.assessPassTitle}>Level Up! You've reached {assessmentResult.level}!</Text>
+            <Text style={styles.assessPassFeedback}>{assessmentResult.feedback}</Text>
+            <TouchableOpacity style={styles.assessButton} onPress={() => router.back()}>
+              <Text style={styles.assessButtonText}>Back to Home</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      } else {
+        return (
+          <View style={styles.assessFailBanner}>
+            <Text style={styles.assessFailTitle}>Keep Practicing!</Text>
+            <Text style={styles.assessFailFeedback}>{assessmentResult.feedback}</Text>
+            <TouchableOpacity style={styles.assessButton} onPress={() => router.back()}>
+              <Text style={styles.assessButtonText}>Keep Practicing</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+    }
+
+    return (
+      <View style={styles.endedBanner}>
+        <Text style={styles.endedText}>Conversation ended. Great practice!</Text>
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -86,9 +119,7 @@ export default function ChatScreen() {
       )}
 
       {isEnded ? (
-        <View style={styles.endedBanner}>
-          <Text style={styles.endedText}>Conversation ended. Great practice! 🎉</Text>
-        </View>
+        renderEndBanner()
       ) : (
         <View style={styles.inputContainer}>
           <TouchableOpacity
@@ -150,4 +181,28 @@ const styles = StyleSheet.create({
   errorText: { color: '#D32F2F', fontSize: 13, textAlign: 'center' },
   endedBanner: { backgroundColor: '#E8F5E9', padding: 16, alignItems: 'center' },
   endedText: { fontSize: 15, fontWeight: '600', color: '#2E7D32' },
+  assessPassBanner: {
+    backgroundColor: '#E8F5E9', padding: 20, alignItems: 'center', gap: 10,
+  },
+  assessPassTitle: {
+    fontSize: 20, fontWeight: '700', color: '#2E7D32',
+  },
+  assessPassFeedback: {
+    fontSize: 14, color: '#333', textAlign: 'center', lineHeight: 20,
+  },
+  assessFailBanner: {
+    backgroundColor: '#FFF8E1', padding: 20, alignItems: 'center', gap: 10,
+  },
+  assessFailTitle: {
+    fontSize: 18, fontWeight: '700', color: '#F57F17',
+  },
+  assessFailFeedback: {
+    fontSize: 14, color: '#333', textAlign: 'center', lineHeight: 20,
+  },
+  assessButton: {
+    backgroundColor: '#007AFF', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12, marginTop: 4,
+  },
+  assessButtonText: {
+    color: '#FFF', fontWeight: '700', fontSize: 16,
+  },
 });

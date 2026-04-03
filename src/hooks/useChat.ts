@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getScenarioById, Scenario } from '../scenarios/data';
 import { sendMessage, ChatMessage } from '../ai/gemini';
 import { parseAIResponse } from '../ai/parser';
+import { buildAssessmentPrompt, parseAssessmentResult, AssessmentResult } from '../levels/assessment';
+import { levelUp } from '../levels/progress';
 import * as queries from '../db/queries';
-import { getProgress, incrementCorrectionCount, incrementUserMessageCount, incrementConversationsAtLevel } from '../db/queries';
+import { getProgress, incrementCorrectionCount, incrementUserMessageCount, incrementConversationsAtLevel, createAssessment } from '../db/queries';
 
 export interface DisplayMessage {
   id: number;
@@ -19,9 +21,12 @@ export function useChat(conversationId: number, scenarioType: string) {
   const [isEnded, setIsEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [levelId, setLevelId] = useState<string>('A2');
+  const [assessmentResult, setAssessmentResult] = useState<{ passed: boolean; feedback: string; level: string } | null>(null);
   const initializedRef = useRef(false);
 
-  const scenario: Scenario | null = scenarioType === 'free'
+  const isAssessment = scenarioType === 'assessment';
+
+  const scenario: Scenario | null = scenarioType === 'free' || isAssessment
     ? null
     : getScenarioById(scenarioType) ?? null;
 
@@ -55,7 +60,15 @@ export function useChat(conversationId: number, scenarioType: string) {
         } else {
           // New conversation — send initial AI greeting
           setIsLoading(true);
-          const greeting = await sendMessage(scenario, [], 'Start the conversation. Greet the user and set the scene.', currentLevelId);
+
+          const assessmentPrompt = isAssessment ? buildAssessmentPrompt(currentLevelId) : undefined;
+          const greeting = await sendMessage(
+            scenario,
+            [],
+            'Start the conversation. Greet the user and set the scene.',
+            currentLevelId,
+            assessmentPrompt
+          );
           const parsed = parseAIResponse(greeting);
 
           // Save hidden "start" user message + AI greeting to DB
@@ -116,14 +129,15 @@ export function useChat(conversationId: number, scenarioType: string) {
       // Check message count for auto-summary
       const msgCount = currentMessages.length;
       let userText = trimmed;
-      if (wantsEnd) {
+      if (wantsEnd && !isAssessment) {
         userText = 'end';
-      } else if (msgCount >= 30) {
+      } else if (msgCount >= 30 && !isAssessment) {
         // 30 total messages ≈ 15 exchanges
         userText = trimmed + '\n\n[This is message 15+. Please provide the conversation summary after your response.]';
       }
 
-      const response = await sendMessage(scenario, history, userText, levelId);
+      const assessmentPrompt = isAssessment ? buildAssessmentPrompt(levelId) : undefined;
+      const response = await sendMessage(scenario, history, userText, levelId, assessmentPrompt);
       const parsed = parseAIResponse(response);
 
       if (parsed.correction !== null) {
@@ -144,7 +158,19 @@ export function useChat(conversationId: number, scenarioType: string) {
       };
       setMessages((prev) => [...prev, aiMsg]);
 
-      if (wantsEnd || msgCount >= 30) {
+      // Check for assessment result
+      if (isAssessment) {
+        const result = parseAssessmentResult(response);
+        if (result) {
+          await createAssessment(levelId, conversationId, result.passed, result.feedback);
+          if (result.passed) {
+            await levelUp();
+          }
+          setAssessmentResult(result);
+          setIsEnded(true);
+          await queries.endConversation(conversationId, parsed.content);
+        }
+      } else if (wantsEnd || msgCount >= 30) {
         setIsEnded(true);
         await queries.endConversation(conversationId, parsed.content);
         await incrementConversationsAtLevel();
@@ -154,9 +180,9 @@ export function useChat(conversationId: number, scenarioType: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, scenario, isLoading, isEnded, levelId]);
+  }, [conversationId, scenario, isLoading, isEnded, levelId, isAssessment]);
 
-  return { messages, isLoading, isEnded, error, send };
+  return { messages, isLoading, isEnded, error, send, assessmentResult };
 }
 
 async function saveWord(newWordStr: string, context: string, conversationId: number): Promise<void> {

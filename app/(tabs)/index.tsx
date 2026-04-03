@@ -1,11 +1,12 @@
 import { View, Text, SectionList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, useCallback } from 'react';
-import { StreakBar } from '../../src/components/StreakBar';
+import { useState, useCallback } from 'react';
+import { LevelBadge } from '../../src/components/LevelBadge';
 import { ScenarioCard } from '../../src/components/ScenarioCard';
-import { scenarios, Scenario } from '../../src/scenarios/data';
+import { getScenariosByLevel, Scenario } from '../../src/scenarios/data';
+import { useProgress } from '../../src/hooks/useProgress';
+import { levels } from '../../src/levels/data';
 import * as queries from '../../src/db/queries';
-import { getDatabase } from '../../src/db/database';
 import { useFocusEffect } from 'expo-router';
 
 interface ActiveConversation {
@@ -16,37 +17,40 @@ interface ActiveConversation {
 
 export default function ChatPickerScreen() {
   const router = useRouter();
-  const [streak, setStreak] = useState(0);
-  const [wordsLearned, setWordsLearned] = useState(0);
+  const { progress, isLoading: progressLoading } = useProgress();
   const [activeConversations, setActiveConversations] = useState<ActiveConversation[]>([]);
+  const [showPreviousLevels, setShowPreviousLevels] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      loadStats();
+      loadActiveConversations();
     }, [])
   );
 
-  const loadStats = async () => {
-    await getDatabase();
-    const [s, w, active] = await Promise.all([
-      queries.getStreak(),
-      queries.getTotalWordsLearned(),
-      queries.getActiveConversations(),
-    ]);
-    setStreak(s);
-    setWordsLearned(w);
+  const loadActiveConversations = async () => {
+    const active = await queries.getActiveConversations();
     setActiveConversations(active);
   };
 
   const startConversation = async (scenarioType: string) => {
-    await getDatabase();
-    const id = await queries.createConversation(scenarioType);
+    const level = progress?.currentLevel.id ?? 'A2';
+    const id = await queries.createConversation(scenarioType, level);
     router.push(`/chat/${id}?scenario=${scenarioType}`);
+  };
+
+  const startAssessment = async () => {
+    if (!progress) return;
+    const id = await queries.createConversation('assessment', progress.currentLevel.id);
+    router.push(`/chat/${id}?scenario=assessment`);
   };
 
   const resumeConversation = (conv: ActiveConversation) => {
     router.push(`/chat/${conv.id}?scenario=${conv.scenario_type}`);
   };
+
+  // Current level scenarios grouped by category
+  const currentLevelId = progress?.currentLevel.id ?? 'A2';
+  const currentScenarios = getScenariosByLevel(currentLevelId);
 
   const categories: { title: string; key: Scenario['category'] }[] = [
     { title: '💼 Work', key: 'work' },
@@ -54,19 +58,41 @@ export default function ChatPickerScreen() {
     { title: '⚙️ Technical', key: 'technical' },
   ];
 
-  const sections = categories.map((cat) => ({
-    title: cat.title,
-    data: scenarios.filter((s) => s.category === cat.key),
-  }));
+  const sections = categories
+    .map((cat) => ({
+      title: cat.title,
+      data: currentScenarios.filter((s) => s.category === cat.key),
+    }))
+    .filter((s) => s.data.length > 0);
+
+  // Previous levels and their scenarios
+  const currentIdx = levels.findIndex((l) => l.id === currentLevelId);
+  const previousLevels = levels.slice(0, currentIdx);
+
+  const previousSections = previousLevels
+    .reverse()
+    .map((level) => ({
+      title: `${level.id} — ${level.name}`,
+      data: getScenariosByLevel(level.id),
+    }))
+    .filter((s) => s.data.length > 0);
 
   return (
     <View style={styles.container}>
-      <StreakBar streak={streak} wordsLearned={wordsLearned} />
       <SectionList
-        sections={sections}
+        sections={[...sections, ...(showPreviousLevels ? previousSections : [])]}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View>
+            {/* Level Badge with progress */}
+            {progress && (
+              <LevelBadge
+                progress={progress}
+                onAssessment={progress.canTakeAssessment ? startAssessment : undefined}
+              />
+            )}
+
+            {/* Active conversations */}
             {activeConversations.length > 0 && (
               <View style={styles.activeSection}>
                 <Text style={styles.activeSectionTitle}>Continue Conversation</Text>
@@ -77,13 +103,15 @@ export default function ChatPickerScreen() {
                     onPress={() => resumeConversation(conv)}
                   >
                     <Text style={styles.activeCardTitle}>
-                      {conv.scenario_type === 'free' ? 'Free Chat' : conv.scenario_type}
+                      {conv.scenario_type === 'free' ? 'Free Chat' : conv.scenario_type === 'assessment' ? 'Assessment' : conv.scenario_type}
                     </Text>
                     <Text style={styles.activeCardMeta}>{conv.message_count} messages</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
+
+            {/* Free Chat button */}
             <TouchableOpacity
               style={styles.freeChat}
               onPress={() => startConversation('free')}
@@ -91,6 +119,11 @@ export default function ChatPickerScreen() {
               <Text style={styles.freeChatText}>💬 Free Chat</Text>
               <Text style={styles.freeChatSub}>Talk about anything you want</Text>
             </TouchableOpacity>
+
+            {/* Current level section header */}
+            <Text style={styles.levelSectionHeader}>
+              {currentLevelId} Scenarios
+            </Text>
           </View>
         }
         renderSectionHeader={({ section }) => (
@@ -102,6 +135,29 @@ export default function ChatPickerScreen() {
             onPress={() => startConversation(item.id)}
           />
         )}
+        ListFooterComponent={
+          previousLevels.length > 0 ? (
+            <View>
+              {!showPreviousLevels ? (
+                <TouchableOpacity
+                  style={styles.previousToggle}
+                  onPress={() => setShowPreviousLevels(true)}
+                >
+                  <Text style={styles.previousToggleText}>
+                    Show Previous Levels ({previousLevels.length})
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.previousToggle}
+                  onPress={() => setShowPreviousLevels(false)}
+                >
+                  <Text style={styles.previousToggleText}>Hide Previous Levels</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null
+        }
         contentContainerStyle={styles.list}
       />
     </View>
@@ -122,5 +178,13 @@ const styles = StyleSheet.create({
   freeChat: { backgroundColor: '#007AFF', borderRadius: 12, padding: 16, marginHorizontal: 16, marginTop: 12, marginBottom: 8 },
   freeChatText: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   freeChatSub: { fontSize: 13, color: '#B3D9FF', marginTop: 2 },
+  levelSectionHeader: {
+    fontSize: 18, fontWeight: '700', color: '#333', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#333', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  previousToggle: {
+    marginHorizontal: 16, marginTop: 16, padding: 14,
+    backgroundColor: '#F0F0F0', borderRadius: 10, alignItems: 'center',
+  },
+  previousToggleText: { fontSize: 15, fontWeight: '600', color: '#666' },
 });

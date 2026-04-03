@@ -25,14 +25,15 @@ export async function sendMessage(
   scenario: Scenario | null,
   history: ChatMessage[],
   userMessage: string,
-  levelId: string = 'A2'
+  levelId: string = 'A2',
+  systemPromptOverride?: string
 ): Promise<string> {
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('API key not set. Please add your Groq API key in Settings.');
   }
 
-  const systemPrompt = buildSystemPrompt(scenario, levelId);
+  const systemPrompt = systemPromptOverride || buildSystemPrompt(scenario, levelId);
 
   const messages = [
     { role: 'system', content: systemPrompt },
